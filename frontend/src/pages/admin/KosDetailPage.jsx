@@ -380,10 +380,13 @@ export default function KosDetailPage() {
                 
                 return (
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                   <div key={room.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                     <div className="h-32 bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center relative">
                       <span className="text-4xl">🏠</span>
 =======
+=======
+>>>>>>> Stashed changes
                   <div key={room.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 border border-gray-100">
                     <div className="h-48 relative overflow-hidden">
                       {room.image ? (
@@ -395,6 +398,9 @@ export default function KosDetailPage() {
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center" />
                       )}
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
                       {pendingComplaints.length > 0 && (
                         <div className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">

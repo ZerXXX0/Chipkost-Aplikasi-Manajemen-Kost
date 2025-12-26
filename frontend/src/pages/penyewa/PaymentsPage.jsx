@@ -69,6 +69,9 @@ export default function PaymentsPage() {
     }
   };
 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
   const fetchData = async () => {
     try {
