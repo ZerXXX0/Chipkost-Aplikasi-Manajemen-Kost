@@ -123,8 +123,8 @@ export default function Login() {
         </form>
 
         <div className="form-links">
-          <a href="#forgot" className="forgot-password">
-            Forget Password?
+          <a>
+            Forget Password? Call Admin for Help
           </a>
         </div>
       </div>

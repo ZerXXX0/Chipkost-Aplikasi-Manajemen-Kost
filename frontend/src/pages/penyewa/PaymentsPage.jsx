@@ -18,6 +18,58 @@ export default function PaymentsPage() {
     fetchData();
   }, []);
 
+<<<<<<< Updated upstream
+=======
+  // Auto-check pending payments on load - only once
+  const hasCheckedRef = useRef(false);
+  useEffect(() => {
+    const checkPendingPayments = async () => {
+      // Only check once per page load
+      if (hasCheckedRef.current) return;
+      hasCheckedRef.current = true;
+      
+      const pendingPayments = payments.filter(p => p.status === 'pending' && p.transaction_id);
+      for (const payment of pendingPayments) {
+        try {
+          const response = await api.post('/pembayaran/check-transaction/', {
+            order_id: payment.transaction_id
+          });
+          console.log(`Checked ${payment.transaction_id}:`, response.data.transaction_status);
+          
+          if (response.data.transaction_status === 'settlement' || 
+              response.data.transaction_status === 'capture') {
+            // Refresh data if any payment was settled
+            fetchData();
+            break;
+          }
+        } catch (err) {
+          console.error('Auto-check error:', err);
+        }
+      }
+    };
+
+    if (payments.length > 0) {
+      checkPendingPayments();
+    }
+  }, [payments.length]);
+
+  const deleteInvoice = async (invoiceId) => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus tagihan ini?\n\nTagihan yang dihapus akan hilang dari riwayat dan laporan keuangan.')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/invoice/${invoiceId}/`);
+      // Refresh data after deletion
+      fetchData();
+      alert('Tagihan berhasil dihapus');
+    } catch (err) {
+      console.error('Error deleting invoice:', err);
+      alert('Gagal menghapus tagihan: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+>>>>>>> Stashed changes
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -262,8 +314,140 @@ export default function PaymentsPage() {
               </button>
             </div>
           </div>
+<<<<<<< Updated upstream
         </div>
       )}
+=======
+        )}
+
+        {/* Paid Invoices / Tagihan Yang Sudah Dibayar */}
+        {paidInvoices.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Tagihan Yang Sudah Dibayar</h2>
+            <div className="space-y-3">
+              {paidInvoices.map(invoice => (
+                <div key={invoice.id} className="bg-white rounded-xl shadow p-4 border-l-4 border-green-500">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-semibold text-gray-800">Invoice #{invoice.invoice_number}</p>
+                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded-full">
+                          LUNAS
+                        </span>
+                      </div>
+                      <p className="text-gray-600 text-sm">{invoice.notes || 'Tagihan Sewa Kos'}</p>
+                      <p className="text-gray-500 text-sm">
+                        Periode: {formatDate(invoice.billing_period_start)} - {formatDate(invoice.billing_period_end)}
+                      </p>
+                      {invoice.due_date && (
+                        <p className="text-sm text-gray-400">
+                          Jatuh Tempo: {formatDate(invoice.due_date)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right flex flex-col items-end gap-2">
+                      <div>
+                        <p className="font-bold text-xl text-gray-800">{formatCurrency(invoice.amount)}</p>
+                        <span className="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                          Lunas
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => downloadInvoice(invoice.id)}
+                          className="px-3 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Download
+                        </button>
+                        <button
+                          onClick={() => deleteInvoice(invoice.id)}
+                          className="px-3 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2"
+                          title="Hapus tagihan"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Hapus
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pending Payments */}
+        {pendingPayments.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Pembayaran Tertunda</h2>
+            <div className="space-y-3">
+              {pendingPayments.map(payment => (
+                <div key={payment.pembayaran_id} className="bg-white rounded-xl shadow p-4 border-l-4 border-yellow-500">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-800">{payment.notes || 'Pembayaran Sewa'}</p>
+                      <p className="text-gray-500 text-sm">{formatDate(payment.tgl_bayar)}</p>
+                      <p className="text-xs text-gray-400">ID: {payment.transaction_id}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="font-bold text-gray-800">{formatCurrency(payment.jumlah)}</p>
+                        <span className="inline-flex px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold">
+                          Menunggu
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={() => checkPendingPaymentStatus(payment.transaction_id)}
+                          disabled={checkingPaymentId === payment.transaction_id || cancellingPaymentId === payment.pembayaran_id}
+                          className="px-3 py-2 bg-cyan-500 text-white text-sm font-medium rounded-lg hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                        >
+                          {checkingPaymentId === payment.transaction_id ? (
+                            <span className="flex items-center gap-1">
+                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              Mengecek...
+                            </span>
+                          ) : (
+                            'Cek Status'
+                          )}
+                        </button>
+                        <button
+                          onClick={() => cancelPayment(payment.pembayaran_id)}
+                          disabled={checkingPaymentId === payment.transaction_id || cancellingPaymentId === payment.pembayaran_id}
+                          className="px-3 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                        >
+                          {cancellingPaymentId === payment.pembayaran_id ? (
+                            <span className="flex items-center gap-1">
+                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              Membatalkan...
+                            </span>
+                          ) : (
+                            'Batalkan'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+
+      </main>
+>>>>>>> Stashed changes
     </div>
   );
 }
