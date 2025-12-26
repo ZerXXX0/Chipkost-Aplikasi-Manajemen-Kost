@@ -99,6 +99,34 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK
         )
     
+    def destroy(self, request, *args, **kwargs):
+        """Delete invoice and update financial report"""
+        invoice = self.get_object()
+        
+        # Check permission - penyewa can only delete their own, admin can delete any
+        if request.user.role == 'penyewa' and invoice.penyewa != request.user:
+            return Response({
+                'error': 'Anda tidak memiliki izin untuk menghapus tagihan ini'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Store invoice month for financial report update
+        invoice_month = invoice.created_at.date().replace(day=1) if invoice.created_at else timezone.now().date().replace(day=1)
+        
+        # Delete the invoice
+        invoice.delete()
+        
+        # Update financial report for the month
+        try:
+            LaporanKeuangan.generateLaporan(invoice_month)
+            print(f'[INFO] Updated financial report for {invoice_month} after deleting invoice')
+        except Exception as e:
+            print(f'[WARNING] Failed to update financial report after invoice deletion: {str(e)}')
+        
+        return Response(
+            {'message': 'Tagihan berhasil dihapus dan laporan keuangan telah diperbarui'},
+            status=status.HTTP_200_OK
+        )
+    
     @action(detail=True, methods=['get'], url_path='export')
     def export_invoice(self, request, pk=None):
         """Export invoice as HTML/PDF for printing"""
