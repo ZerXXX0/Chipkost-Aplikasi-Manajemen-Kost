@@ -72,6 +72,22 @@ export default function PaymentsPage() {
     }
   }, [payments.length]);
 
+  const deleteInvoice = async (invoiceId) => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus tagihan ini?\n\nTagihan yang dihapus akan hilang dari riwayat dan laporan keuangan.')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/invoice/${invoiceId}/`);
+      // Refresh data after deletion
+      fetchData();
+      alert('Tagihan berhasil dihapus');
+    } catch (err) {
+      console.error('Error deleting invoice:', err);
+      alert('Gagal menghapus tagihan: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -865,15 +881,27 @@ export default function PaymentsPage() {
                           Lunas
                         </span>
                       </div>
-                      <button
-                        onClick={() => downloadInvoice(invoice.id)}
-                        className="px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Download Invoice
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => downloadInvoice(invoice.id)}
+                          className="px-3 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Download
+                        </button>
+                        <button
+                          onClick={() => deleteInvoice(invoice.id)}
+                          className="px-3 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2"
+                          title="Hapus tagihan"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Hapus
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
