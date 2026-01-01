@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000/api';
+let API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
+if (!API_URL.endsWith('/api') && !API_URL.endsWith('/api/')) {
+  API_URL = `${API_URL.replace(/\/$/, '')}/api`;
+}
 
 const api = axios.create({
   baseURL: API_URL,
@@ -37,12 +41,14 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (error.response.status === 401 && !originalRequest._retry) {
+    const isAuthRequest = originalRequest.url.includes('auth/login') || originalRequest.url.includes('auth/token/refresh');
+
+    if (error.response.status === 401 && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
 
       try {
         const refreshToken = localStorage.getItem('refresh_token');
-        
+
         if (!refreshToken) {
           // No refresh token, redirect to login
           localStorage.removeItem('access_token');
@@ -51,7 +57,7 @@ api.interceptors.response.use(
           window.location.href = '/login';
           return Promise.reject(error);
         }
-        
+
         const response = await axios.post(`${API_URL}/auth/token/refresh/`, {
           refresh: refreshToken,
         });

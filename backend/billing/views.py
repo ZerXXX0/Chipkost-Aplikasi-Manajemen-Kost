@@ -43,13 +43,42 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        queryset = Invoice.objects.all()
+        # Exclude cancelled invoices from list view by default
+        queryset = Invoice.objects.exclude(status='cancelled')
         
         # Penyewa hanya bisa lihat invoice mereka sendiri
         if user.role == 'penyewa':
             queryset = queryset.filter(penyewa=user)
         
         return queryset
+    
+    def destroy(self, request, *args, **kwargs):
+        """Delete invoice and update financial report"""
+        invoice = self.get_object()
+        
+        # Check permission - penyewa can only delete their own, admin can delete any
+        if request.user.role == 'penyewa' and invoice.penyewa != request.user:
+            return Response({
+                'error': 'Anda tidak memiliki izin untuk menghapus tagihan ini'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Store invoice month for financial report update
+        invoice_month = invoice.created_at.date().replace(day=1) if invoice.created_at else timezone.now().date().replace(day=1)
+        
+        # Delete the invoice
+        invoice.delete()
+        
+        # Update financial report for the month
+        try:
+            LaporanKeuangan.generateLaporan(invoice_month)
+            print(f'[INFO] Updated financial report for {invoice_month} after deleting invoice')
+        except Exception as e:
+            print(f'[WARNING] Failed to update financial report after invoice deletion: {str(e)}')
+        
+        return Response(
+            {'message': 'Tagihan berhasil dihapus dan laporan keuangan telah diperbarui'},
+            status=status.HTTP_200_OK
+        )
     
     @action(detail=True, methods=['get'], url_path='export')
     def export_invoice(self, request, pk=None):
@@ -491,12 +520,30 @@ class PembayaranViewSet(viewsets.ModelViewSet):
         }
         
         try:
+            # Validate Midtrans configuration
+            if not settings.MIDTRANS_SERVER_KEY:
+                return Response({
+                    'error': 'Midtrans Server Key tidak dikonfigurasi. Silakan hubungi admin.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            if not settings.MIDTRANS_CLIENT_KEY:
+                return Response({
+                    'error': 'Midtrans Client Key tidak dikonfigurasi. Silakan hubungi admin.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
             # Create Snap transaction
             snap = get_snap_client()
             print(f"[DEBUG] Midtrans Server Key: {settings.MIDTRANS_SERVER_KEY[:20]}...")
             print(f"[DEBUG] Is Production: {settings.MIDTRANS_IS_PRODUCTION}")
             print(f"[DEBUG] Transaction params: {transaction_params}")
             snap_response = snap.create_transaction(transaction_params)
+            print(f"[DEBUG] Snap response: {snap_response}")
+            
+            # Validate response
+            if not snap_response or 'token' not in snap_response:
+                return Response({
+                    'error': 'Midtrans tidak mengembalikan response yang valid. Response: ' + str(snap_response)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
             # Create pending payment record
             pembayaran = Pembayaran.objects.create(
@@ -510,18 +557,41 @@ class PembayaranViewSet(viewsets.ModelViewSet):
                 notes=f'Pembayaran Sewa {payment_months} bulan - Kamar {rental.room.room_number} (Periode: {start_date.strftime("%d/%m/%Y")} - {end_date.strftime("%d/%m/%Y")})'
             )
             
-            # Create invoice for this payment
-            invoice = Invoice.objects.create(
+            # Create invoice for this payment (check for existing unpaid invoice for same period first)
+            # First, check if there's an existing UNPAID invoice for the same period
+            existing_unpaid_invoice = Invoice.objects.filter(
                 rental=rental,
                 penyewa=request.user,
-                invoice_number=order_id,
-                amount=total_amount,
                 invoice_start_date=start_date,
                 invoice_end_date=end_date,
-                tenggat=start_date + relativedelta(days=1),  # Due tomorrow
-                status='unpaid',
-                notes=f'Invoice untuk pembayaran {payment_months} bulan'
-            )
+                status='unpaid'
+            ).first()
+            
+            if existing_unpaid_invoice:
+                # Use the existing invoice - update its invoice_number to match order_id
+                existing_unpaid_invoice.invoice_number = order_id
+                existing_unpaid_invoice.save()
+                invoice = existing_unpaid_invoice
+                print(f"[DEBUG] Using existing unpaid invoice {invoice.id}, updated invoice_number to {order_id}")
+            else:
+                # Check if invoice with this order_id already exists
+                existing_invoice = Invoice.objects.filter(invoice_number=order_id).first()
+                if existing_invoice:
+                    invoice = existing_invoice
+                    print(f"[DEBUG] Found existing invoice with order_id {order_id}")
+                else:
+                    invoice = Invoice.objects.create(
+                        rental=rental,
+                        penyewa=request.user,
+                        invoice_number=order_id,
+                        amount=total_amount,
+                        invoice_start_date=start_date,
+                        invoice_end_date=end_date,
+                        tenggat=start_date + relativedelta(days=1),  # Due tomorrow
+                        status='unpaid',
+                        notes=f'Invoice untuk pembayaran {payment_months} bulan'
+                    )
+                    print(f"[DEBUG] Created new invoice {invoice.id} with order_id {order_id}")
             
             return Response({
                 'success': True,
@@ -582,10 +652,8 @@ class PembayaranViewSet(viewsets.ModelViewSet):
                             invoice.rental.end_date = invoice.invoice_end_date
                             invoice.rental.save()
                             
-                            # Cancel/supersede all other invoices that are covered by this payment
-                            # This includes:
-                            # 1. Unpaid invoices with periods within the new paid period
-                            # 2. Paid extension invoices with periods within the new paid period
+                            # PENTING: Cancel/hapus semua invoice lain yang tercakup dalam periode pembayaran ini
+                            # untuk menghindari duplikasi data
                             other_invoices = Invoice.objects.filter(
                                 rental=invoice.rental,
                                 penyewa=pembayaran.penyewa,
@@ -595,24 +663,35 @@ class PembayaranViewSet(viewsets.ModelViewSet):
                             
                             for other_inv in other_invoices:
                                 print(f'[DEBUG] Checking invoice {other_inv.invoice_number} (status: {other_inv.status})')
-                                # Check if the other invoice's period is within the new invoice's period
+                                # Check if the other invoice's period overlaps or is within the new invoice's period
                                 if (other_inv.invoice_start_date and other_inv.invoice_end_date and 
                                     invoice.invoice_start_date and invoice.invoice_end_date):
-                                    # If other invoice period is within the new paid period, cancel it
-                                    if (other_inv.invoice_start_date >= invoice.invoice_start_date and
-                                        other_inv.invoice_end_date <= invoice.invoice_end_date):
-                                        print(f'[INFO] Invoice {other_inv.invoice_number} period ({other_inv.invoice_start_date} to {other_inv.invoice_end_date}) is covered by {invoice.invoice_number} ({invoice.invoice_start_date} to {invoice.invoice_end_date})')
+                                    # Cancel if invoice period overlaps with or is within the new paid period
+                                    overlaps = (
+                                        # Other invoice starts within new invoice period
+                                        (invoice.invoice_start_date <= other_inv.invoice_start_date <= invoice.invoice_end_date) or
+                                        # Other invoice ends within new invoice period  
+                                        (invoice.invoice_start_date <= other_inv.invoice_end_date <= invoice.invoice_end_date) or
+                                        # Other invoice completely contains new invoice period
+                                        (other_inv.invoice_start_date <= invoice.invoice_start_date and other_inv.invoice_end_date >= invoice.invoice_end_date)
+                                    )
+                                    
+                                    if overlaps:
+                                        print(f'[INFO] ✗ Invoice {other_inv.invoice_number} overlaps with {invoice.invoice_number}')
+                                        print(f'       Period: {other_inv.invoice_start_date} to {other_inv.invoice_end_date}')
+                                        print(f'       Paid period: {invoice.invoice_start_date} to {invoice.invoice_end_date}')
                                         other_inv.status = 'cancelled'
-                                        other_inv.notes = f"{other_inv.notes or ''}\n[Superseded] Digantikan oleh invoice {invoice.invoice_number} pada {timezone.now().date()}".strip()
+                                        other_inv.notes = f"{other_inv.notes or ''}\n[Auto-cancelled] Periode sudah tercakup dalam pembayaran {invoice.invoice_number} senilai Rp {int(invoice.amount):,}".strip().replace(',', '.')
                                         other_inv.save()
-                                        print(f'[INFO] ✓ Cancelled superseded invoice {other_inv.invoice_number}')
+                                        print(f'[INFO] ✓ Cancelled overlapping invoice {other_inv.invoice_number}')
                                     else:
-                                        print(f'[DEBUG] Invoice {other_inv.invoice_number} period NOT fully covered')
+                                        print(f'[DEBUG] Invoice {other_inv.invoice_number} period does not overlap')
                                 elif other_inv.status == 'unpaid':
-                                    # Mark unpaid invoices as paid if no period check
-                                    other_inv.status = 'paid'
+                                    # Cancel unpaid invoices without period data to be safe
+                                    print(f'[INFO] Cancelling unpaid invoice {other_inv.invoice_number} (no period data)')
+                                    other_inv.status = 'cancelled'
+                                    other_inv.notes = f"{other_inv.notes or ''}\n[Auto-cancelled] Digantikan oleh pembayaran baru {invoice.invoice_number}".strip()
                                     other_inv.save()
-                                    print(f'[INFO] Marked unpaid invoice {other_inv.invoice_number} as paid')
                     
                     # Update financial report
                     try:
@@ -687,20 +766,41 @@ class PembayaranViewSet(viewsets.ModelViewSet):
                             pembayaran.save()
                             
                             if invoice:
-                                invoice.status = 'paid'
-                                invoice.save()
-                                
-                                # Update rental end_date
-                                if invoice.rental and invoice.invoice_end_date:
-                                    invoice.rental.end_date = invoice.invoice_end_date
-                                    invoice.rental.save()
+                                # Check if this invoice is already paid to prevent duplicate processing
+                                if invoice.status != 'paid':
+                                    invoice.status = 'paid'
+                                    invoice.save()
+                                    print(f'[INFO] Invoice {invoice.invoice_number} marked as paid')
                                     
-                                    # Mark all other unpaid invoices for this rental as paid
-                                    Invoice.objects.filter(
-                                        rental=invoice.rental,
-                                        penyewa=pembayaran.penyewa,
-                                        status='unpaid'
-                                    ).update(status='paid')
+                                    # Update rental end_date
+                                    if invoice.rental and invoice.invoice_end_date:
+                                        invoice.rental.end_date = invoice.invoice_end_date
+                                        invoice.rental.save()
+                                        
+                                        # Cancel overlapping unpaid invoices (similar to midtrans_notification logic)
+                                        other_invoices = Invoice.objects.filter(
+                                            rental=invoice.rental,
+                                            penyewa=pembayaran.penyewa,
+                                            status='unpaid'
+                                        ).exclude(id=invoice.id)
+                                        
+                                        for other_inv in other_invoices:
+                                            # Check if the other invoice's period overlaps with the paid period
+                                            if (other_inv.invoice_start_date and other_inv.invoice_end_date and 
+                                                invoice.invoice_start_date and invoice.invoice_end_date):
+                                                overlaps = (
+                                                    (invoice.invoice_start_date <= other_inv.invoice_start_date <= invoice.invoice_end_date) or
+                                                    (invoice.invoice_start_date <= other_inv.invoice_end_date <= invoice.invoice_end_date) or
+                                                    (other_inv.invoice_start_date <= invoice.invoice_start_date and other_inv.invoice_end_date >= invoice.invoice_end_date)
+                                                )
+                                                
+                                                if overlaps:
+                                                    other_inv.status = 'cancelled'
+                                                    other_inv.notes = f"{other_inv.notes or ''}\n[Auto-cancelled] Periode sudah tercakup dalam pembayaran {invoice.invoice_number}".strip()
+                                                    other_inv.save()
+                                                    print(f'[INFO] Cancelled overlapping invoice {other_inv.invoice_number}')
+                                else:
+                                    print(f'[INFO] Invoice {invoice.invoice_number} already paid, skipping')
                             
                             # Update financial report
                             try:
@@ -779,8 +879,26 @@ class PembayaranViewSet(viewsets.ModelViewSet):
         extension_blocked_reason = None
         
         if rental.end_date:
-            # Calculate remaining months
-            remaining_days = (rental.end_date - today).days
+            # Check if there are any unpaid invoices that extend beyond current rental.end_date
+            # If user has unpaid 12-month invoice, don't create extension invoice
+            future_unpaid_invoices = Invoice.objects.filter(
+                rental=rental,
+                penyewa=request.user,
+                status='unpaid',
+                invoice_end_date__gt=rental.end_date
+            ).order_by('-invoice_end_date')
+            
+            if future_unpaid_invoices.exists():
+                # User has unpaid invoice(s) that already extend the rental
+                # Use the furthest end date from unpaid invoices
+                furthest_invoice = future_unpaid_invoices.first()
+                effective_end_date = furthest_invoice.invoice_end_date
+                remaining_days = (effective_end_date - today).days
+                print(f'[INFO] User has unpaid invoice extending to {effective_end_date}, using that for calculation')
+            else:
+                effective_end_date = rental.end_date
+                remaining_days = (rental.end_date - today).days
+            
             remaining_months = remaining_days / 30.0
             
             # If less than 6 months remaining, show extension billing
@@ -854,7 +972,22 @@ class PembayaranViewSet(viewsets.ModelViewSet):
                         'urgency_level': urgency_level,
                         'is_last_chance': remaining_days <= 30
                     }
-            elif remaining_months <= 0:
+            else:
+                # If remaining_months > 6, cancel any existing extension invoices since they're no longer needed
+                if remaining_months > 6:
+                    obsolete_extension_invoices = Invoice.objects.filter(
+                        rental=rental,
+                        penyewa=request.user,
+                        status='unpaid',
+                        notes__icontains='Perpanjangan'
+                    )
+                    for obs_inv in obsolete_extension_invoices:
+                        obs_inv.status = 'cancelled'
+                        obs_inv.notes = f"{obs_inv.notes or ''}\n[Auto-cancelled] Sudah ada pembayaran yang mencakup periode ini".strip()
+                        obs_inv.save()
+                        print(f'[INFO] Auto-cancelled obsolete extension invoice {obs_inv.invoice_number}')
+            
+            if remaining_months <= 0:
                 # Rental expired
                 extension_billing = None
                 can_extend = True  # Can extend after expiry

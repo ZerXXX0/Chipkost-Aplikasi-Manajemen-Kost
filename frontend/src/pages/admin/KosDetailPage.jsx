@@ -26,6 +26,11 @@ export default function KosDetailPage() {
     nomor_kamar: '',
     harga: '',
     status: 'available',
+    description: '',
+    capacity: 1,
+    floor: 1,
+    facilities: '',
+    image: null,
   });
   const [selectedUserId, setSelectedUserId] = useState('');
   const [extendForm, setExtendForm] = useState({
@@ -116,15 +121,28 @@ export default function KosDetailPage() {
   const handleAddRoom = async (e) => {
     e.preventDefault();
     try {
-      const response = await api.post('/kamar/', {
-        ...roomForm,
-        kos: parseInt(kosId, 10),
+      const formData = new FormData();
+      formData.append('nomor_kamar', roomForm.nomor_kamar);
+      formData.append('harga', roomForm.harga);
+      formData.append('status', roomForm.status);
+      formData.append('description', roomForm.description || '');
+      formData.append('capacity', roomForm.capacity || 1);
+      formData.append('floor', roomForm.floor || 1);
+      formData.append('facilities', roomForm.facilities || '');
+      if (roomForm.image) {
+        formData.append('image', roomForm.image);
+      }
+      formData.append('kos', parseInt(kosId, 10));
+
+      const response = await api.post('/kamar/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
+      
       const currentRooms = Array.isArray(rooms) ? rooms : [];
       const newRooms = [...currentRooms, response.data];
       setRooms(newRooms);
       setShowAddRoomModal(false);
-      setRoomForm({ nomor_kamar: '', harga: '', status: 'available' });
+      setRoomForm({ nomor_kamar: '', harga: '', status: 'available', description: '', capacity: 1, floor: 1, facilities: '', image: null });
       setError('');
       // Refresh kos details and complaints
       fetchKosDetails();
@@ -148,15 +166,27 @@ export default function KosDetailPage() {
   const handleEditRoom = async (e) => {
     e.preventDefault();
     try {
-      const response = await api.put(`/kamar/${editingRoom.id}/`, {
-        ...roomForm,
-        kos: parseInt(kosId, 10),
+      const formData = new FormData();
+      formData.append('nomor_kamar', roomForm.nomor_kamar);
+      formData.append('harga', roomForm.harga);
+      formData.append('status', roomForm.status);
+      formData.append('description', roomForm.description || '');
+      formData.append('capacity', roomForm.capacity || 1);
+      formData.append('floor', roomForm.floor || 1);
+      formData.append('facilities', roomForm.facilities || '');
+      formData.append('kos', parseInt(kosId, 10));
+      if (roomForm.image && typeof roomForm.image !== 'string') {
+        formData.append('image', roomForm.image);
+      }
+
+      const response = await api.put(`/kamar/${editingRoom.id}/`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       const updatedRooms = rooms.map(room => room.id === editingRoom.id ? response.data : room);
       setRooms(updatedRooms);
       setShowEditRoomModal(false);
       setEditingRoom(null);
-      setRoomForm({ nomor_kamar: '', harga: '', status: 'available' });
+      setRoomForm({ nomor_kamar: '', harga: '', status: 'available', description: '', capacity: 1, floor: 1, facilities: '', image: null });
       setError('');
       // Refresh complaints
       fetchComplaintsForRooms(updatedRooms);
@@ -191,6 +221,11 @@ export default function KosDetailPage() {
       nomor_kamar: room.nomor_kamar || room.room_number,
       harga: room.harga || room.price,
       status: room.status,
+      description: room.description || '',
+      capacity: room.capacity || 1,
+      floor: room.floor || 1,
+      facilities: room.facilities || '',
+      image: room.image || null,
     });
     setShowEditRoomModal(true);
   };
@@ -458,8 +493,17 @@ export default function KosDetailPage() {
                                   monthsRemaining < 6 ? '3-6 Bulan' : 'Lebih dari 6 Bulan';
                 
                 return (
-                  <div key={room.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-                    <div className="h-32 bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center relative">
+                  <div key={room.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 border border-gray-100">
+                    <div className="h-48 relative overflow-hidden">
+                      {room.image ? (
+                        <img 
+                          src={room.image} 
+                          alt={`Kamar ${roomNumber}`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center" />
+                      )}
                       {pendingComplaints.length > 0 && (
                         <div className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
                           {pendingComplaints.length}
@@ -471,11 +515,13 @@ export default function KosDetailPage() {
                         </div>
                       )}
                     </div>
-                    <div className="p-6">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">Kamar {roomNumber}</h3>
-                      <p className="text-2xl font-bold text-blue-600 mb-3" style={{ color: '#00A5E8' }}>
-                        Rp {parseInt(roomPrice).toLocaleString('id-ID')}
-                      </p>
+                    <div className="p-5">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-xl font-bold text-gray-900">Kamar {roomNumber}</h3>
+                        <p className="text-xl font-bold text-blue-600" style={{ color: '#00A5E8' }}>
+                          Rp {parseInt(roomPrice).toLocaleString('id-ID')}
+                        </p>
+                      </div>
                       <div className="mb-4">
                         <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
                           room.status === 'available' ? 'bg-green-100 text-green-800' :
@@ -486,6 +532,23 @@ export default function KosDetailPage() {
                            room.status === 'occupied' ? 'Ditempati' : 'Perbaikan'}
                         </span>
                       </div>
+                      
+                      {/* Facilities & Description */}
+                      {(room.facilities || room.description) && (
+                        <div className="mb-3 p-3 bg-gray-50 rounded-lg">
+                          {room.facilities && (
+                            <div className="mb-2">
+                              <p className="text-xs font-semibold text-gray-700 mb-1">Fasilitas:</p>
+                              <p className="text-xs text-gray-600">{room.facilities}</p>
+                            </div>
+                          )}
+                          {room.description && (
+                            <div>
+                              <p className="text-xs text-gray-600 italic">{room.description}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       
                       {/* Penyewa Info */}
                       {room.penyewa_username ? (
@@ -540,12 +603,6 @@ export default function KosDetailPage() {
                             <div className="mt-2 p-2 bg-gray-100 rounded">
                               <div className="flex items-center justify-between">
                                 <p className="text-xs text-gray-500">Belum ada data sewa</p>
-                                <button
-                                  onClick={() => openExtendRentalModal(room)}
-                                  className="px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
-                                >
-                                  + Atur Sewa
-                                </button>
                               </div>
                             </div>
                           )}
@@ -607,11 +664,14 @@ export default function KosDetailPage() {
 
       {/* Add Room Modal */}
       {showAddRoomModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-8 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-6">Tambah Kamar Baru</h2>
             <form onSubmit={handleAddRoom}>
-              <div className="mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                {/* Left Column */}
+                <div className="space-y-4">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Nomor Kamar</label>
                 <input
                   type="text"
@@ -622,7 +682,7 @@ export default function KosDetailPage() {
                   required
                 />
               </div>
-              <div className="mb-4">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Harga (Rp)</label>
                 <input
                   type="number"
@@ -633,7 +693,66 @@ export default function KosDetailPage() {
                   required
                 />
               </div>
-              <div className="mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Lantai</label>
+                <input
+                  type="number"
+                  value={roomForm.floor}
+                  onChange={(e) => setRoomForm({ ...roomForm, floor: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Contoh: 1"
+                  min="1"
+                />
+              </div>
+                </div>
+                
+                {/* Right Column */}
+                <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Kapasitas</label>
+                <input
+                  type="number"
+                  value={roomForm.capacity}
+                  onChange={(e) => setRoomForm({ ...roomForm, capacity: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Contoh: 1"
+                  min="1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Deskripsi</label>
+                <textarea
+                  value={roomForm.description}
+                  onChange={(e) => setRoomForm({ ...roomForm, description: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Deskripsi kamar"
+                  rows="2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Fasilitas</label>
+                <textarea
+                  value={roomForm.facilities}
+                  onChange={(e) => setRoomForm({ ...roomForm, facilities: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Contoh: AC, WiFi, Kamar Mandi Dalam"
+                  rows="2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Gambar Kamar</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setRoomForm({ ...roomForm, image: e.target.files[0] })}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+                </div>
+              </div>
+              
+              {/* Status field full width */}
+              <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                 <select
                   value={roomForm.status}
@@ -646,30 +765,30 @@ export default function KosDetailPage() {
                 </select>
               </div>
               {error && (
-                <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
+                <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
                   {error}
                 </div>
               )}
-              <div className="flex gap-3">
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddRoomModal(false);
+                    setRoomForm({ nomor_kamar: '', harga: '', status: 'available', description: '', capacity: 1, floor: 1, facilities: '', image: null });
+                    setError('');
+                  }}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Batal
+                </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   style={{ backgroundColor: '#00A5E8' }}
                   onMouseEnter={(e) => e.target.style.backgroundColor = '#0088c7'}
                   onMouseLeave={(e) => e.target.style.backgroundColor = '#00A5E8'}
                 >
                   Simpan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddRoomModal(false);
-                    setRoomForm({ nomor_kamar: '', harga: '', status: 'available' });
-                    setError('');
-                  }}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                >
-                  Batal
                 </button>
               </div>
             </form>
@@ -679,11 +798,14 @@ export default function KosDetailPage() {
 
       {/* Edit Room Modal */}
       {showEditRoomModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-8 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-6">Edit Kamar</h2>
             <form onSubmit={handleEditRoom}>
-              <div className="mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                {/* Left Column */}
+                <div className="space-y-4">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Nomor Kamar</label>
                 <input
                   type="text"
@@ -693,7 +815,7 @@ export default function KosDetailPage() {
                   required
                 />
               </div>
-              <div className="mb-4">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Harga (Rp)</label>
                 <input
                   type="number"
@@ -703,7 +825,68 @@ export default function KosDetailPage() {
                   required
                 />
               </div>
-              <div className="mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Lantai</label>
+                <input
+                  type="number"
+                  value={roomForm.floor}
+                  onChange={(e) => setRoomForm({ ...roomForm, floor: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="1"
+                />
+              </div>
+                </div>
+                
+                {/* Right Column */}
+                <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Kapasitas</label>
+                <input
+                  type="number"
+                  value={roomForm.capacity}
+                  onChange={(e) => setRoomForm({ ...roomForm, capacity: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Deskripsi</label>
+                <textarea
+                  value={roomForm.description}
+                  onChange={(e) => setRoomForm({ ...roomForm, description: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows="2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Fasilitas</label>
+                <textarea
+                  value={roomForm.facilities}
+                  onChange={(e) => setRoomForm({ ...roomForm, facilities: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows="2"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Gambar Kamar</label>
+                {roomForm.image && typeof roomForm.image === 'string' && (
+                  <div className="mb-2">
+                    <img src={roomForm.image} alt="Current" className="w-32 h-32 object-cover rounded" />
+                    <p className="text-xs text-gray-500 mt-1">Gambar saat ini</p>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setRoomForm({ ...roomForm, image: e.target.files[0] })}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+                </div>
+              </div>
+              
+              {/* Status field full width */}
+              <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                 <select
                   value={roomForm.status}
@@ -716,31 +899,31 @@ export default function KosDetailPage() {
                 </select>
               </div>
               {error && (
-                <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
+                <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
                   {error}
                 </div>
               )}
-              <div className="flex gap-3">
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  style={{ backgroundColor: '#00A5E8' }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#0088c7'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = '#00A5E8'}
-                >
-                  Update
-                </button>
+              <div className="flex gap-3 justify-end mt-6">
                 <button
                   type="button"
                   onClick={() => {
                     setShowEditRoomModal(false);
                     setEditingRoom(null);
-                    setRoomForm({ nomor_kamar: '', harga: '', status: 'available' });
+                    setRoomForm({ nomor_kamar: '', harga: '', status: 'available', description: '', capacity: 1, floor: 1, facilities: '', image: null });
                     setError('');
                   }}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
                 >
                   Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  style={{ backgroundColor: '#00A5E8' }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#0088c7'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#00A5E8'}
+                >
+                  Update
                 </button>
               </div>
             </form>

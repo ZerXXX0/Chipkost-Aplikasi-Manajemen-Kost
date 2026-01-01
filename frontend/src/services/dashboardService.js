@@ -10,7 +10,7 @@ const dashboardService = {
    */
   getUsers: async (params = {}) => {
     try {
-      const response = await api.get('/auth/users/', { params });
+      const response = await api.get('auth/users/', { params });
       // Normalize response - return array if paginated object
       return Array.isArray(response.data) ? response.data : response.data?.results || [];
     } catch (error) {
@@ -24,7 +24,7 @@ const dashboardService = {
    */
   getRooms: async (params = {}) => {
     try {
-      const response = await api.get('/kamar/', { params });
+      const response = await api.get('kamar/', { params });
       // Normalize response - return array if paginated object
       return Array.isArray(response.data) ? response.data : response.data?.results || [];
     } catch (error) {
@@ -38,7 +38,7 @@ const dashboardService = {
    */
   getRoomById: async (id) => {
     try {
-      const response = await api.get(`/kamar/${id}/`);
+      const response = await api.get(`kamar/${id}/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching room:', error);
@@ -51,7 +51,7 @@ const dashboardService = {
    */
   getInvoices: async (params = {}) => {
     try {
-      const response = await api.get('/invoice/', { params });
+      const response = await api.get('invoice/', { params });
       // Normalize response - return array if paginated object
       return Array.isArray(response.data) ? response.data : response.data?.results || [];
     } catch (error) {
@@ -65,7 +65,7 @@ const dashboardService = {
    */
   getInvoiceById: async (id) => {
     try {
-      const response = await api.get(`/invoice/${id}/`);
+      const response = await api.get(`invoice/${id}/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching invoice:', error);
@@ -78,7 +78,7 @@ const dashboardService = {
    */
   getComplaints: async (params = {}) => {
     try {
-      const response = await api.get('/kerusakan/', { params });
+      const response = await api.get('kerusakan/', { params });
       // Normalize response - return array if paginated object
       return Array.isArray(response.data) ? response.data : response.data?.results || [];
     } catch (error) {
@@ -92,7 +92,7 @@ const dashboardService = {
    */
   getComplaintById: async (id) => {
     try {
-      const response = await api.get(`/kerusakan/${id}/`);
+      const response = await api.get(`kerusakan/${id}/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching complaint:', error);
@@ -105,7 +105,7 @@ const dashboardService = {
    */
   getRentals: async (params = {}) => {
     try {
-      const response = await api.get('/rental/', { params });
+      const response = await api.get('rental/', { params });
       // Normalize response - return array if paginated object
       return Array.isArray(response.data) ? response.data : response.data?.results || [];
     } catch (error) {
@@ -119,7 +119,7 @@ const dashboardService = {
    */
   getRentalById: async (id) => {
     try {
-      const response = await api.get(`/rental/${id}/`);
+      const response = await api.get(`rental/${id}/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching rental:', error);
@@ -132,7 +132,7 @@ const dashboardService = {
    */
   getKos: async (params = {}) => {
     try {
-      const response = await api.get('/kos/', { params });
+      const response = await api.get('kos/', { params });
       // Normalize response - return array if paginated object
       return Array.isArray(response.data) ? response.data : response.data?.results || [];
     } catch (error) {
@@ -146,7 +146,7 @@ const dashboardService = {
    */
   getKosById: async (id) => {
     try {
-      const response = await api.get(`/kos/${id}/`);
+      const response = await api.get(`kos/${id}/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching kos:', error);
@@ -159,7 +159,7 @@ const dashboardService = {
    */
   getFinancialReports: async (params = {}) => {
     try {
-      const response = await api.get('/laporan-keuangan/', { params });
+      const response = await api.get('laporan-keuangan/', { params });
       // Normalize response - return array if paginated object
       return Array.isArray(response.data) ? response.data : response.data?.results || [];
     } catch (error) {
@@ -173,7 +173,7 @@ const dashboardService = {
    */
   getNotifications: async (params = {}) => {
     try {
-      const response = await api.get('/notifikasi/', { params });
+      const response = await api.get('notifikasi/', { params });
       // Normalize response - return array if paginated object
       return Array.isArray(response.data) ? response.data : response.data?.results || [];
     } catch (error) {
@@ -187,7 +187,7 @@ const dashboardService = {
    */
   getMyRoom: async () => {
     try {
-      const response = await api.get('/kamar/my-room/');
+      const response = await api.get('kamar/my-room/');
       return response.data;
     } catch (error) {
       console.error('Error fetching my room:', error);
@@ -200,7 +200,7 @@ const dashboardService = {
    */
   getMyRentalInfo: async () => {
     try {
-      const response = await api.get('/pembayaran/rental-info/');
+      const response = await api.get('pembayaran/rental-info/');
       return response.data;
     } catch (error) {
       console.error('Error fetching rental info:', error);
@@ -213,7 +213,7 @@ const dashboardService = {
    */
   getCctvCameras: async (params = {}) => {
     try {
-      const response = await api.get('/cctv/', { params });
+      const response = await api.get('cctv/', { params });
       return Array.isArray(response.data) ? response.data : response.data?.results || [];
     } catch (error) {
       console.error('Error fetching CCTV cameras:', error);
@@ -222,17 +222,17 @@ const dashboardService = {
   },
 
   createCctvCamera: async (payload) => {
-    const response = await api.post('/cctv/', payload);
+    const response = await api.post('cctv/', payload);
     return response.data;
   },
 
   updateCctvCamera: async (id, payload) => {
-    const response = await api.put(`/cctv/${id}/`, payload);
+    const response = await api.put(`cctv/${id}/`, payload);
     return response.data;
   },
 
   deleteCctvCamera: async (id) => {
-    await api.delete(`/cctv/${id}/`);
+    await api.delete(`cctv/${id}/`);
   },
 };
 
