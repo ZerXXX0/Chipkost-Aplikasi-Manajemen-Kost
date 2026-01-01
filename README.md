@@ -1,6 +1,16 @@
-# ChipKost - Smart Boarding House Management System
+# ChipKost - Aplikasi Manajemen Kost
 
 A comprehensive web-based boarding house (kos) management system with integrated payment gateway, RFID access control, and CCTV monitoring. Built with Django REST Framework and React.
+
+## 🌟 Key Features
+For testing purpose, open the website link on github description, enter this credentials
+Login Info Pemilik/Owner/Admin
+username: admin1
+pass: admin1
+
+Login Info Penyewa/Tenant
+username: Ghozy
+pass: {Admin123}
 
 ## 🌟 Key Features
 
